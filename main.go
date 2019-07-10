@@ -102,32 +102,32 @@ func main() {
 	}
 
 	var nmibLimit int
-	ev, exists := os.LookupEnv("DPB_MAX_MIB")
+	DPB_MAX_MIB, exists := os.LookupEnv("DPB_MAX_MIB")
 	if !exists {
 		nmibLimit = defaultNmibLimit
 	} else {
 		var err error
-		nmibLimit, err = strconv.Atoi(ev)
+		nmibLimit, err = strconv.Atoi(DPB_MAX_MIB)
 		if err != nil || nmibLimit < 1 {
 			die("DPB_MAX_MIB must be an integer >= 1")
 		}
 	}
 
-	basedir, exists := os.LookupEnv("DPB_DIR")
+	DPB_DIR, exists := os.LookupEnv("DPB_DIR")
 	if !exists {
 		die("please set the value of DPB_DIR")
 	}
-	f, err := os.Open(basedir)
+	f, err := os.Open(DPB_DIR)
 	if err != nil {
 		die(err.Error())
 	}
 	if fi, err := f.Stat(); err != nil || !fi.IsDir() {
-		die("%s does not exist or is not a directory", basedir)
+		die("%s does not exist or is not a directory", DPB_DIR)
 	}
 
 	c := &context{
 		prng:    rand.New(rand.NewSource(time.Now().UnixNano())),
-		basedir: basedir,
+		basedir: DPB_DIR,
 		maxsize: int64(nmibLimit * mib),
 	}
 	http.HandleFunc("/", c.handler)
