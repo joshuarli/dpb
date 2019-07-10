@@ -98,8 +98,15 @@ func die(format string, v ...interface{}) {
 
 func main() {
 	if len(os.Args) != 2 {
-		// TODO: add version and env var info
-		die("usage: %s port", os.Args[0])
+		die(`dpb ver. %s
+
+usage: %s port
+
+environment:
+
+	DPB_DIR        base directory to store paste files
+	DPB_MAX_MIB    per-paste upload limit, in MiB
+`, VERSION, os.Args[0])
 	}
 
 	var nmibLimit int
