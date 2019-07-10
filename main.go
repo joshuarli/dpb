@@ -87,22 +87,26 @@ func (c *Context) handler (w http.ResponseWriter, r *http.Request) {
     }
 }
 
+func die(format string, v ...interface{}) {
+    fmt.Fprintf(os.Stderr, format, v...)
+    os.Stderr.Write([]byte("\n"))
+    os.Exit(1)
+}
+
 func main () {
     // TODO: cli help and port arg, no flag parsing though just default to help if no argv 1
     storageDir, exists := os.LookupEnv("DPB_DIR")
     if ! exists {
-        fmt.Fprintf(os.Stderr, "please set the value of DPB_DIR.\n")
-        os.Exit(1)
+        die("please set the value of DPB_DIR")
     }
     f, err := os.Open(storageDir)
     if err != nil {
-        fmt.Fprintf(os.Stderr, "%s\n", err.Error())
-        os.Exit(1)
+        die(err.Error())
     }
     if fi, err := f.Stat(); err != nil || ! fi.IsDir() {
-        fmt.Fprintf(os.Stderr, "%s does not exist or is not a directory.\n", storageDir)
-        os.Exit(1)
+        die("%s does not exist or is not a directory", storageDir)
     }
+
     c := &Context{
         prng: rand.New(rand.NewSource(time.Now().UnixNano())),
         basedir: storageDir,
