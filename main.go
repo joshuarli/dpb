@@ -17,6 +17,53 @@ const (
 	mib = 1 << 20
 )
 
+// golang's net.http.sniff.DetectContentType is a bit lacking,
+// but browsers typically detect and report content type of octet-streams,
+// so consider this as more of a vanity feature for some common file types.
+
+// some things it doesn't support at time of writing but comes to mind:
+// 	- json
+// 	- mkv
+//	- opus
+//	- tar
+//	- bz2, xz, and a lot more
+
+// if this gets worse enough i'll likely consider:
+//	- writing a client wrapper around curl and bsd file to supply an extension
+//		- server would need to be modified as well
+//	- bothering stdlib about it
+//	- contributing to stdlib
+//	- pulling in gabriel-vasile/mimetype
+
+var extensions = map[string]string {
+	"application/octet-stream": "",
+	"text/plain": "txt",
+	"text/html": "html",
+	"text/xml": "xml",
+	"image/jpeg": "jpg",
+	"image/png": "png",
+	"image/gif": "gif",
+	"image/webp": "webp",
+	"audio/wave": "wav",
+	"application/ogg": "ogg",
+	"audio/mpeg": "mp3",
+	"video/webm": "webm",
+	"video/mp4": "mp4",
+	"application/pdf": "pdf",
+	"application/x-rar-compressed": "rar",
+	"application/zip": "zip",
+	"application/x-gzip": "gz",
+}
+
+func inferExtension(data []byte) string {
+	mimetype := http.DetectContentType(data)
+	mimetype = mimetype[:strings.IndexByte(mimetype, ';')]
+	if extension, ok := extensions[mimetype]; ok {
+		return extension
+	}
+	return ""
+}
+
 type context struct {
 	prng    *rand.Rand
 	basedir string
@@ -39,12 +86,16 @@ func savePaste(r *http.Request, c *context) (string, error) {
 	var f *os.File
 	var fn string
 	var err error
+	extension := inferExtension(r.Body)  // XXX: this doesn't work, and starts to get ugly considering r.Body is io.ReadCloser (can't seek back, and not a fan of doing a redundant memory copy)
 	buf := make([]byte, 2)
 	for {
 		if _, err = c.prng.Read(buf); err != nil {
 			return "", errors.New("failed reading from prng")
 		}
 		fn = hex.EncodeToString(buf)
+		if extension != "" {
+			fn = fn + "." + extension
+		}
 		f, err = os.OpenFile(fn, os.O_RDWR|os.O_CREATE|os.O_EXCL, 0644)
 		if err != nil {
 			defer f.Close()
@@ -53,18 +104,17 @@ func savePaste(r *http.Request, c *context) (string, error) {
 			//      of any other way to specifically test that O_EXCL is the failure reason.
 			//      Could trade an extra stat call to remove this badness.
 			if strings.Contains(emsg, "file exists") {
-				continue // reroll name generation
+				continue  // reroll name generation
 			}
 			return "", errors.New("failed creating file " + fn + " : " + emsg)
 		}
 		defer os.Chmod(fn, 0444)
 		break
 	}
-	_, err = io.Copy(f, r.Body) // TODO: limit size of upload, can probably do this before save_paste
+	_, err = io.Copy(f, r.Body) // TODO: limit size of upload, can probably do this before savePaste
 	if err != nil {
 		return "", errors.New("failed writing to disk: " + err.Error())
 	}
-	// TODO: fn: mime guess -> ext, check against blacklist, append to fn
 	return fn, nil
 }
 
