@@ -77,12 +77,12 @@ func (c *context) handler(w http.ResponseWriter, r *http.Request) {
 	case http.MethodGet:
 		err := readPaste(r, w, c)
 		if err != nil {
-			http.Error(w, "failed reading paste: " + err.Error(), http.StatusInternalServerError)
+			http.Error(w, "failed reading paste (" + err.Error() + ")", http.StatusInternalServerError)
 		}
 	case http.MethodPost:
 		fn, err := savePaste(r, w, c)
 		if err != nil {
-			http.Error(w, "failed saving paste: " + err.Error(), http.StatusInternalServerError)
+			http.Error(w, "failed saving paste (" + err.Error() + ")", http.StatusInternalServerError)
 		}
 		fmt.Fprintf(w, fn)
 	default:
