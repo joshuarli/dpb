@@ -98,7 +98,8 @@ func die(format string, v ...interface{}) {
 
 func main() {
 	if len(os.Args) != 2 {
-		die("usage: %s port", os.Args[0]) // TODO: add env var info
+		// TODO: add version and env var info
+		die("usage: %s port", os.Args[0])
 	}
 
 	var nmibLimit int
