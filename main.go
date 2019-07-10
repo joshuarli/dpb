@@ -10,17 +10,19 @@ import (
 	"net/http"
 	"os"
 	"strings"
+	"strconv"
 	"time"
 )
 
 const (
 	mib = 1 << 20
-	nmibLimit = 10  // TODO: use as default but configurable via env
+	defaultNmibLimit = 10
 )
 
 type context struct {
 	prng    *rand.Rand
 	basedir string
+	maxsize	int64
 }
 
 func readPaste(r *http.Request, w http.ResponseWriter, c *context) error {
@@ -62,7 +64,7 @@ func savePaste(r *http.Request, w http.ResponseWriter, c *context) (string, erro
 		defer os.Chmod(fn, 0444)
 		break
 	}
-	_, err = io.Copy(f, http.MaxBytesReader(w, r.Body, nmibLimit * mib))
+	_, err = io.Copy(f, http.MaxBytesReader(w, r.Body, c.maxsize))
 	if err != nil {
 		defer os.Remove(fn)
 		return "", errors.New("failed writing to disk: " + err.Error())
@@ -96,8 +98,21 @@ func die(format string, v ...interface{}) {
 
 func main() {
 	if len(os.Args) != 2 {
-		die("usage: %s port", os.Args[0])
+		die("usage: %s port", os.Args[0])  // TODO: add env var info
 	}
+
+	var nmibLimit int
+	ev, exists := os.LookupEnv("DPB_MAX_MIB")
+	if !exists {
+		nmibLimit = defaultNmibLimit
+	} else {
+		var err error
+		nmibLimit, err = strconv.Atoi(ev)
+		if err != nil || nmibLimit < 1 {
+			die("DPB_MAX_MIB must be an integer >= 1")
+		}
+	}
+
 	basedir, exists := os.LookupEnv("DPB_DIR")
 	if !exists {
 		die("please set the value of DPB_DIR")
@@ -109,9 +124,11 @@ func main() {
 	if fi, err := f.Stat(); err != nil || !fi.IsDir() {
 		die("%s does not exist or is not a directory", basedir)
 	}
+
 	c := &context{
 		prng:    rand.New(rand.NewSource(time.Now().UnixNano())),
 		basedir: basedir,
+		maxsize: int64(nmibLimit * mib),
 	}
 	http.HandleFunc("/", c.handler)
 	log.Fatal(http.ListenAndServe(":" + os.Args[1], nil))
