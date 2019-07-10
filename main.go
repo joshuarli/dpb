@@ -60,11 +60,10 @@ func savePaste(r *http.Request, c *context) (string, error) {
 		defer os.Chmod(fn, 0444)
 		break
 	}
-	_, err = io.Copy(f, r.Body) // TODO: limit size of upload, can probably do this before save_paste
+	_, err = io.Copy(f, r.Body) // TODO: limit size of upload, can probably do this before savePaste
 	if err != nil {
 		return "", errors.New("failed writing to disk: " + err.Error())
 	}
-	// TODO: fn: mime guess -> ext, check against blacklist, append to fn
 	return fn, nil
 }
 
