@@ -94,7 +94,10 @@ func die(format string, v ...interface{}) {
 }
 
 func main () {
-    // TODO: cli help and port arg, no flag parsing though just default to help if no argv 1
+    if len(os.Args) != 2 {
+        die("usage: %s port", os.Args[0])
+    }
+
     storageDir, exists := os.LookupEnv("DPB_DIR")
     if ! exists {
         die("please set the value of DPB_DIR")
@@ -112,5 +115,5 @@ func main () {
         basedir: storageDir,
     }
     http.HandleFunc("/", c.handler)
-    log.Fatal(http.ListenAndServe(":8888", nil))
+    log.Fatal(http.ListenAndServe(":" + os.Args[1], nil))
 }
