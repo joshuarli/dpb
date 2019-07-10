@@ -14,15 +14,15 @@ import (
 )
 
 const (
-	MiB = 1 << 20
+	mib = 1 << 20
 )
 
-type Context struct {
+type context struct {
 	prng    *rand.Rand
 	basedir string
 }
 
-func read_paste(fn string, w http.ResponseWriter, c *Context) error {
+func readPaste(fn string, w http.ResponseWriter, c *context) error {
 	f, err := os.OpenFile(fn, os.O_RDONLY, 0444)
 	if err != nil {
 		http.Error(w, "not found", http.StatusNotFound)
@@ -35,7 +35,7 @@ func read_paste(fn string, w http.ResponseWriter, c *Context) error {
 	return nil
 }
 
-func save_paste(r *http.Request, c *Context) (string, error) {
+func savePaste(r *http.Request, c *context) (string, error) {
 	var f *os.File
 	var fn string
 	var err error
@@ -68,16 +68,16 @@ func save_paste(r *http.Request, c *Context) (string, error) {
 	return fn, nil
 }
 
-func (c *Context) handler(w http.ResponseWriter, r *http.Request) {
+func (c *context) handler(w http.ResponseWriter, r *http.Request) {
 	switch r.Method {
 	case http.MethodGet:
 		fn := r.URL.Path[1:]
-		err := read_paste(fn, w, c)
+		err := readPaste(fn, w, c)
 		if err != nil {
 			http.Error(w, "failed reading paste: "+err.Error(), http.StatusInternalServerError)
 		}
 	case http.MethodPost:
-		fn, err := save_paste(r, c)
+		fn, err := savePaste(r, c)
 		if err != nil {
 			http.Error(w, "failed saving paste: "+err.Error(), http.StatusInternalServerError)
 		}
@@ -108,7 +108,7 @@ func main() {
 	if fi, err := f.Stat(); err != nil || !fi.IsDir() {
 		die("%s does not exist or is not a directory", basedir)
 	}
-	c := &Context{
+	c := &context{
 		prng:    rand.New(rand.NewSource(time.Now().UnixNano())),
 		basedir: basedir,
 	}
