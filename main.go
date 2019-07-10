@@ -9,20 +9,20 @@ import (
 	"math/rand"
 	"net/http"
 	"os"
-	"strings"
 	"strconv"
+	"strings"
 	"time"
 )
 
 const (
-	mib = 1 << 20
+	mib              = 1 << 20
 	defaultNmibLimit = 10
 )
 
 type context struct {
 	prng    *rand.Rand
 	basedir string
-	maxsize	int64
+	maxsize int64
 }
 
 func readPaste(r *http.Request, w http.ResponseWriter, c *context) error {
@@ -77,12 +77,12 @@ func (c *context) handler(w http.ResponseWriter, r *http.Request) {
 	case http.MethodGet:
 		err := readPaste(r, w, c)
 		if err != nil {
-			http.Error(w, "failed reading paste (" + err.Error() + ")", http.StatusInternalServerError)
+			http.Error(w, "failed reading paste ("+err.Error()+")", http.StatusInternalServerError)
 		}
 	case http.MethodPost:
 		fn, err := savePaste(r, w, c)
 		if err != nil {
-			http.Error(w, "failed saving paste (" + err.Error() + ")", http.StatusInternalServerError)
+			http.Error(w, "failed saving paste ("+err.Error()+")", http.StatusInternalServerError)
 		}
 		fmt.Fprintf(w, fn)
 	default:
@@ -98,7 +98,7 @@ func die(format string, v ...interface{}) {
 
 func main() {
 	if len(os.Args) != 2 {
-		die("usage: %s port", os.Args[0])  // TODO: add env var info
+		die("usage: %s port", os.Args[0]) // TODO: add env var info
 	}
 
 	var nmibLimit int
@@ -131,5 +131,5 @@ func main() {
 		maxsize: int64(nmibLimit * mib),
 	}
 	http.HandleFunc("/", c.handler)
-	log.Fatal(http.ListenAndServe(":" + os.Args[1], nil))
+	log.Fatal(http.ListenAndServe(":"+os.Args[1], nil))
 }
