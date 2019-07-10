@@ -75,6 +75,7 @@ func savePaste(r *http.Request, w http.ResponseWriter, c *context) (string, erro
 func (c *context) handler(w http.ResponseWriter, r *http.Request) {
 	switch r.Method {
 	case http.MethodGet:
+		w.Header()["Date"] = nil // suppress go generated Date header
 		err := readPaste(r, w, c)
 		if err != nil {
 			http.Error(w, "failed reading paste ("+err.Error()+")", http.StatusInternalServerError)
