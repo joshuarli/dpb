@@ -15,6 +15,7 @@ import (
 
 const (
 	mib = 1 << 20
+	nmibLimit = 10  // TODO: use as default but configurable via env
 )
 
 type context struct {
@@ -35,7 +36,7 @@ func readPaste(fn string, w http.ResponseWriter, c *context) error {
 	return nil
 }
 
-func savePaste(r *http.Request, c *context) (string, error) {
+func savePaste(r *http.Request, w http.ResponseWriter, c *context) (string, error) {
 	var f *os.File
 	var fn string
 	var err error
@@ -60,8 +61,9 @@ func savePaste(r *http.Request, c *context) (string, error) {
 		defer os.Chmod(fn, 0444)
 		break
 	}
-	_, err = io.Copy(f, r.Body) // TODO: limit size of upload, can probably do this before savePaste
+	_, err = io.Copy(f, http.MaxBytesReader(w, r.Body, nmibLimit * mib))
 	if err != nil {
+		defer os.Remove(fn)
 		return "", errors.New("failed writing to disk: " + err.Error())
 	}
 	return fn, nil
@@ -73,12 +75,12 @@ func (c *context) handler(w http.ResponseWriter, r *http.Request) {
 		fn := r.URL.Path[1:]
 		err := readPaste(fn, w, c)
 		if err != nil {
-			http.Error(w, "failed reading paste: "+err.Error(), http.StatusInternalServerError)
+			http.Error(w, "failed reading paste: " + err.Error(), http.StatusInternalServerError)
 		}
 	case http.MethodPost:
-		fn, err := savePaste(r, c)
+		fn, err := savePaste(r, w, c)
 		if err != nil {
-			http.Error(w, "failed saving paste: "+err.Error(), http.StatusInternalServerError)
+			http.Error(w, "failed saving paste: " + err.Error(), http.StatusInternalServerError)
 		}
 		fmt.Fprintf(w, fn)
 	default:
@@ -112,5 +114,5 @@ func main() {
 		basedir: basedir,
 	}
 	http.HandleFunc("/", c.handler)
-	log.Fatal(http.ListenAndServe(":"+os.Args[1], nil))
+	log.Fatal(http.ListenAndServe(":" + os.Args[1], nil))
 }
