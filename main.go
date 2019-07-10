@@ -23,7 +23,8 @@ type context struct {
 	basedir string
 }
 
-func readPaste(fn string, w http.ResponseWriter, c *context) error {
+func readPaste(r *http.Request, w http.ResponseWriter, c *context) error {
+	fn := r.URL.Path[1:]
 	f, err := os.OpenFile(fn, os.O_RDONLY, 0444)
 	if err != nil {
 		http.Error(w, "not found", http.StatusNotFound)
@@ -72,8 +73,7 @@ func savePaste(r *http.Request, w http.ResponseWriter, c *context) (string, erro
 func (c *context) handler(w http.ResponseWriter, r *http.Request) {
 	switch r.Method {
 	case http.MethodGet:
-		fn := r.URL.Path[1:]
-		err := readPaste(fn, w, c)
+		err := readPaste(r, w, c)
 		if err != nil {
 			http.Error(w, "failed reading paste: " + err.Error(), http.StatusInternalServerError)
 		}
