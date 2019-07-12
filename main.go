@@ -53,8 +53,8 @@ func savePaste(data *io.ReadCloser, mimetype string, c *context) (string, error)
 		id = hex.EncodeToString(buf)
 		fp = path.Join(c.basedir, id)
 		f, err = os.OpenFile(fp, os.O_RDWR|os.O_CREATE|os.O_EXCL, 0644)
+		defer f.Close()
 		if err != nil {
-			defer f.Close()
 			emsg := err.Error()
 			// XXX: generally not great to rely on magic strings, but don't know
 			//      of any other way to specifically test that O_EXCL is the failure reason.
@@ -64,7 +64,6 @@ func savePaste(data *io.ReadCloser, mimetype string, c *context) (string, error)
 			}
 			return "", errors.New("failed creating file " + fp + " : " + emsg)
 		}
-		defer os.Chmod(fp, 0444)
 		break
 	}
 	// we write the client-provided mimetype to the beginning of the paste file
