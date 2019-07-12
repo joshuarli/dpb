@@ -30,6 +30,7 @@ type context struct {
 func getPaste(id string, c *context) (*bufio.Reader, *os.File, string, error) {
 	f, err := os.OpenFile(path.Join(c.basedir, id), os.O_RDONLY, 0444)
 	if err != nil {
+		time.Sleep(3 * time.Second)  // deter rogue enumeration attempts
 		return nil, f, "", errors.New("not found")
 	}
 	reader := bufio.NewReader(f)
@@ -45,12 +46,12 @@ func savePaste(data *io.ReadCloser, mimetype string, c *context) (string, error)
 	var f *os.File
 	var id, fp string
 	var err error
-	buf := make([]byte, 2)
+	buf := make([]byte, 3)
 	for {
 		if _, err = c.prng.Read(buf); err != nil {
 			return "", errors.New("failed reading from prng")
 		}
-		id = hex.EncodeToString(buf)
+		id = hex.EncodeToString(buf)[:5]
 		fp = path.Join(c.basedir, id)
 		f, err = os.OpenFile(fp, os.O_RDWR|os.O_CREATE|os.O_EXCL, 0644)
 		defer f.Close()
