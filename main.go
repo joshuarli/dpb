@@ -35,7 +35,7 @@ func getPaste(id string, c *context) (*os.File, error) {
 	return f, nil
 }
 
-func savePaste(r *http.Request, w http.ResponseWriter, c *context) (string, error) {
+func savePaste(data *io.ReadCloser, mimetype string, c *context) (string, error) {
 	var f *os.File
 	var id, fp string
 	var err error
@@ -61,7 +61,8 @@ func savePaste(r *http.Request, w http.ResponseWriter, c *context) (string, erro
 		defer os.Chmod(fp, 0444)
 		break
 	}
-	_, err = io.Copy(f, http.MaxBytesReader(w, r.Body, c.maxsize)) // TODO: remove use of w and r by putting it into handler and passing it as bytes.Buffer
+	// TODO: write the mimetype to the buffer start
+	_, err = io.Copy(f, *data)
 	if err != nil {
 		defer os.Remove(fp)
 		return "", errors.New("failed writing to disk: " + err.Error())
@@ -81,8 +82,9 @@ func (c *context) handler(w http.ResponseWriter, r *http.Request) {
 		// w.Header().Set("Content-Type", "application/octet-stream")  TODO: readPaste should also return a content type string
 		io.Copy(w, f)
 	case http.MethodPost:
-		// TODO: write the mimetype to the buffer start
-		id, err := savePaste(r, w, c)
+		mimetype := "application/octet-stream"
+		data := http.MaxBytesReader(w, r.Body, c.maxsize)
+		id, err := savePaste(&data, mimetype, c)
 		if err != nil {
 			http.Error(w, "failed saving paste ("+err.Error()+")", http.StatusInternalServerError)
 		}
