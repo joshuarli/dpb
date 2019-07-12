@@ -30,15 +30,15 @@ type context struct {
 func getPaste(id string, c *context) (*bufio.Reader, *os.File, string, error) {
 	f, err := os.OpenFile(path.Join(c.basedir, id), os.O_RDONLY, 0444)
 	if err != nil {
-		return nil, nil, "", errors.New("not found")
+		return nil, f, "", errors.New("not found")
 	}
 	reader := bufio.NewReader(f)
 	// XXX: this may go badly if the paste wasn't saved to disk via savePaste, which writes a mimetype to the 1st line
 	mimetype, err := reader.ReadString('\n')
 	if err != nil {
-		return nil, nil, "", errors.New("failed to read mimetype prelude in paste")
+		return nil, f, "", errors.New("failed to read mimetype prelude in paste ")
 	}
-	return reader, nil, mimetype, nil
+	return reader, f, mimetype, nil
 }
 
 func savePaste(data *io.ReadCloser, mimetype string, c *context) (string, error) {
@@ -87,6 +87,7 @@ func (c *context) handler(w http.ResponseWriter, r *http.Request) {
 		defer f.Close()
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusNotFound)
+			return
 		}
 		w.Header().Set("Content-Type", mimetype)
 		io.Copy(w, reader)
@@ -99,6 +100,7 @@ func (c *context) handler(w http.ResponseWriter, r *http.Request) {
 		id, err := savePaste(&data, mimetype, c)
 		if err != nil {
 			http.Error(w, "failed saving paste ("+err.Error()+")", http.StatusInternalServerError)
+			return
 		}
 		fmt.Fprintf(w, id)
 	default:
