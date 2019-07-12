@@ -6,14 +6,16 @@ dumb (as in simple) pastebin for the solo self-hoster
 
 - it's simple
 
-
 **anti-features**
 
+these are some commonly expected features that are omitted in the interest of keeping the server as simple and straightforward as possible. if you want these, you may want to look elsewhere.
+
+- configuration file
+- logging
 - sunsetting or one-time read pastes
-
-**possible future features**
-
-- http DELETE
+- syntax detection + highlighting
+- diceware-like paste ids
+    - 5 digit hex + delayed 404 GET is a simple compromise
 
 
 ## download
@@ -21,23 +23,19 @@ dumb (as in simple) pastebin for the solo self-hoster
 cross-platform static builds are available [every version release](https://github.com/joshuarli/dpb/releases).
 
 
-## server example
+## server
 
-    $ DPB_DIR="$PWD" dpb 9999
+start the server on port 9999, saving pastes of maximum size 1 MiB to `$PWD`.
 
-
-## client upload example
-
-    $ curl -X POST \
-        -H "Content-Type: application/octet-stream" --data-binary '@-' \
-        http://localhost:9999/
-        < file
+    $ DPB_DIR="$PWD" DPB_MAX_MIB=1 dpb 9999
 
 
-## client download
+## client
 
-to keep things simple, the server doesn't try and infer the extension of the uploaded data blob.
+because the server is made to be as simple as possible, it is up to the client to upload binary data and tell the server the mimetype to serve the paste with.
 
-modern web browsers can do some naive detection for things like text, images, and documents, and will add that information to the download dialog. but if you're using something like curl/wget, use `file` to inspect what was downloaded.
+a simple client script `client.sh` has been provided. it uses `file` to detect the mimetype and add it as a `Content-Type` header to the `curl` upload. the server is designed to recognize and remember this header when serving the paste.
 
-there _might_ be a feature in the future where you can pass a custom `Content-Type` to be reflected in the download headers. this would require server changes such as `X-Content-Type-Options=nosniff`, and the client to wrap bsd `file` - i'd like to avoid parsing multipart forms entirely because i've already tried this and it was unwieldy.
+    $ ./client.sh < image.jpg
+    9ed79
+    $ ./client.sh 9ed79 > pasted-image.jpg
