@@ -25,6 +25,7 @@ type context struct {
 	prng    *rand.Rand
 	basedir string
 	maxsize int64
+	idlen   int
 }
 
 func getPaste(id string, c *context) (*bufio.Reader, *os.File, string, error) {
@@ -46,12 +47,12 @@ func savePaste(data *io.ReadCloser, mimetype string, c *context) (string, error)
 	var f *os.File
 	var id, fp string
 	var err error
-	buf := make([]byte, 3)
+	buf := make([]byte, (c.idlen+1)/2)
 	for {
 		if _, err = c.prng.Read(buf); err != nil {
 			return "", errors.New("failed reading from prng")
 		}
-		id = hex.EncodeToString(buf)[:5]
+		id = hex.EncodeToString(buf)[:c.idlen]
 		fp = path.Join(c.basedir, id)
 		f, err = os.OpenFile(fp, os.O_RDWR|os.O_CREATE|os.O_EXCL, 0644)
 		defer f.Close()
@@ -161,6 +162,7 @@ environment:
 		prng:    rand.New(rand.NewSource(time.Now().UnixNano())),
 		basedir: DPB_DIR,
 		maxsize: int64(nmibLimit * mib),
+		idlen:   5,
 	}
 	http.HandleFunc("/", c.handler)
 	log.Fatal(http.ListenAndServe(":"+os.Args[1], nil))
