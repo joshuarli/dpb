@@ -26,13 +26,13 @@ type context struct {
 	maxsize int64
 }
 
-func getPaste(id string, c *context) (*os.File, error) {
+func getPaste(id string, c *context) (*os.File, string, error) {
 	f, err := os.OpenFile(path.Join(c.basedir, id), os.O_RDONLY, 0444)
 	if err != nil {
-		return nil, errors.New("not found")
+		return nil, "", errors.New("not found")
 	}
-	// TODO: extract content-type from f
-	return f, nil
+	// TODO: extract mandatory content-type from f else report malformed paste
+	return f, "application/octet-stream", nil
 }
 
 func savePaste(data *io.ReadCloser, mimetype string, c *context) (string, error) {
@@ -74,15 +74,18 @@ func (c *context) handler(w http.ResponseWriter, r *http.Request) {
 	switch r.Method {
 	case http.MethodGet:
 		w.Header()["Date"] = nil // suppress go generated Date header
-		f, err := getPaste(r.URL.Path[1:], c)
+		f, mimetype, err := getPaste(r.URL.Path[1:], c)
 		defer f.Close()
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusNotFound)
 		}
-		// w.Header().Set("Content-Type", "application/octet-stream")  TODO: readPaste should also return a content type string
+		w.Header().Set("Content-Type", mimetype)
 		io.Copy(w, f)
 	case http.MethodPost:
-		mimetype := "application/octet-stream"
+		mimetype := r.Header.Get("Content-Type")
+		if mimetype == "" {
+			mimetype = "application/octet-stream"
+		}
 		data := http.MaxBytesReader(w, r.Body, c.maxsize)
 		id, err := savePaste(&data, mimetype, c)
 		if err != nil {
