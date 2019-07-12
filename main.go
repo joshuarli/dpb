@@ -26,17 +26,13 @@ type context struct {
 	maxsize int64
 }
 
-func readPaste(id string, w http.ResponseWriter, c *context) error {
+func getPaste(id string, c *context) (*os.File, error) {
 	f, err := os.OpenFile(path.Join(c.basedir, id), os.O_RDONLY, 0444)
 	if err != nil {
-		http.Error(w, "not found", http.StatusNotFound)
-		return nil // already failed, so early return success
+		return nil, errors.New("not found")
 	}
-	_, err = io.Copy(w, f) // TODO: remove use of w by using a bytes.Buffer, so the handler actually does the semantic job of writing the response
-	if err != nil {
-		return errors.New("failed writing response: " + err.Error())
-	}
-	return nil
+	// TODO: extract content-type from f
+	return f, nil
 }
 
 func savePaste(r *http.Request, w http.ResponseWriter, c *context) (string, error) {
@@ -77,11 +73,13 @@ func (c *context) handler(w http.ResponseWriter, r *http.Request) {
 	switch r.Method {
 	case http.MethodGet:
 		w.Header()["Date"] = nil // suppress go generated Date header
-		// w.Header().Set("Content-Type", "application/octet-stream")  // TODO: let readPaste return a bytes.Buffer and a content type string
-		err := readPaste(r.URL.Path[1:], w, c)
+		f, err := getPaste(r.URL.Path[1:], c)
+		defer f.Close()
 		if err != nil {
-			http.Error(w, "failed reading paste ("+err.Error()+")", http.StatusInternalServerError)
+			http.Error(w, err.Error(), http.StatusNotFound)
 		}
+		// w.Header().Set("Content-Type", "application/octet-stream")  TODO: readPaste should also return a content type string
+		io.Copy(w, f)
 	case http.MethodPost:
 		// TODO: write the mimetype to the buffer start
 		id, err := savePaste(r, w, c)
