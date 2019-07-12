@@ -30,7 +30,7 @@ type context struct {
 func getPaste(id string, c *context) (*bufio.Reader, *os.File, string, error) {
 	f, err := os.OpenFile(path.Join(c.basedir, id), os.O_RDONLY, 0444)
 	if err != nil {
-		time.Sleep(3 * time.Second)  // deter rogue enumeration attempts
+		time.Sleep(3 * time.Second) // deter rogue enumeration attempts
 		return nil, f, "", errors.New("not found")
 	}
 	reader := bufio.NewReader(f)
@@ -95,6 +95,7 @@ func (c *context) handler(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		w.Header().Set("Content-Type", mimetype)
+		w.Header().Set("X-Content-Type-Options", "nosniff")
 		io.Copy(w, reader)
 	case http.MethodPost:
 		mimetype := r.Header.Get("Content-Type")
