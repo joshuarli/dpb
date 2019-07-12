@@ -82,8 +82,13 @@ func savePaste(data *io.ReadCloser, mimetype string, c *context) (string, error)
 func (c *context) handler(w http.ResponseWriter, r *http.Request) {
 	switch r.Method {
 	case http.MethodGet:
+		id := r.URL.Path[1:]
+		if id == "" {
+			fmt.Fprintf(w, "dpb ver. %s", VERSION)
+			return
+		}
 		w.Header()["Date"] = nil // suppress go generated Date header
-		reader, f, mimetype, err := getPaste(r.URL.Path[1:], c)
+		reader, f, mimetype, err := getPaste(id, c)
 		defer f.Close()
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusNotFound)
@@ -102,7 +107,7 @@ func (c *context) handler(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, "failed saving paste ("+err.Error()+")", http.StatusInternalServerError)
 			return
 		}
-		fmt.Fprintf(w, id)
+		fmt.Fprintf(w, "%s", id)
 	default:
 		http.Error(w, "only GET /filename or POST / is allowed", http.StatusMethodNotAllowed)
 	}
