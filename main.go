@@ -27,18 +27,18 @@ type context struct {
 	maxsize int64
 }
 
-func getPaste(id string, c *context) (*bufio.Reader, string, error) {
+func getPaste(id string, c *context) (*bufio.Reader, *os.File, string, error) {
 	f, err := os.OpenFile(path.Join(c.basedir, id), os.O_RDONLY, 0444)
 	if err != nil {
-		return nil, "", errors.New("not found")
+		return nil, nil, "", errors.New("not found")
 	}
 	reader := bufio.NewReader(f)
 	// XXX: this may go badly if the paste wasn't saved to disk via savePaste, which writes a mimetype to the 1st line
 	mimetype, err := reader.ReadString('\n')
 	if err != nil {
-		return nil, "", errors.New("failed to read mimetype prelude in paste")
+		return nil, nil, "", errors.New("failed to read mimetype prelude in paste")
 	}
-	return reader, mimetype, nil
+	return reader, nil, mimetype, nil
 }
 
 func savePaste(data *io.ReadCloser, mimetype string, c *context) (string, error) {
@@ -83,7 +83,8 @@ func (c *context) handler(w http.ResponseWriter, r *http.Request) {
 	switch r.Method {
 	case http.MethodGet:
 		w.Header()["Date"] = nil // suppress go generated Date header
-		reader, mimetype, err := getPaste(r.URL.Path[1:], c)
+		reader, f, mimetype, err := getPaste(r.URL.Path[1:], c)
+		defer f.Close()
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusNotFound)
 		}
