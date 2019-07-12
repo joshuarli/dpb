@@ -9,6 +9,7 @@ import (
 	"math/rand"
 	"net/http"
 	"os"
+	"path"
 	"strconv"
 	"strings"
 	"time"
@@ -25,14 +26,13 @@ type context struct {
 	maxsize int64
 }
 
-func readPaste(r *http.Request, w http.ResponseWriter, c *context) error {
-	fn := r.URL.Path[1:]
-	f, err := os.OpenFile(fn, os.O_RDONLY, 0444)
+func readPaste(id string, w http.ResponseWriter, c *context) error {
+	f, err := os.OpenFile(path.Join(c.basedir, id), os.O_RDONLY, 0444)
 	if err != nil {
 		http.Error(w, "not found", http.StatusNotFound)
 		return nil // already failed, so early return success
 	}
-	_, err = io.Copy(w, f)
+	_, err = io.Copy(w, f) // TODO: remove use of w by using a bytes.Buffer, so the handler actually does the semantic job of writing the response
 	if err != nil {
 		return errors.New("failed writing response: " + err.Error())
 	}
@@ -41,15 +41,16 @@ func readPaste(r *http.Request, w http.ResponseWriter, c *context) error {
 
 func savePaste(r *http.Request, w http.ResponseWriter, c *context) (string, error) {
 	var f *os.File
-	var fn string
+	var id, fp string
 	var err error
 	buf := make([]byte, 2)
 	for {
 		if _, err = c.prng.Read(buf); err != nil {
 			return "", errors.New("failed reading from prng")
 		}
-		fn = hex.EncodeToString(buf)
-		f, err = os.OpenFile(fn, os.O_RDWR|os.O_CREATE|os.O_EXCL, 0644)
+		id = hex.EncodeToString(buf)
+		fp = path.Join(c.basedir, id)
+		f, err = os.OpenFile(fp, os.O_RDWR|os.O_CREATE|os.O_EXCL, 0644)
 		if err != nil {
 			defer f.Close()
 			emsg := err.Error()
@@ -59,33 +60,35 @@ func savePaste(r *http.Request, w http.ResponseWriter, c *context) (string, erro
 			if strings.Contains(emsg, "file exists") {
 				continue // reroll name generation
 			}
-			return "", errors.New("failed creating file " + fn + " : " + emsg)
+			return "", errors.New("failed creating file " + fp + " : " + emsg)
 		}
-		defer os.Chmod(fn, 0444)
+		defer os.Chmod(fp, 0444)
 		break
 	}
-	_, err = io.Copy(f, http.MaxBytesReader(w, r.Body, c.maxsize))
+	_, err = io.Copy(f, http.MaxBytesReader(w, r.Body, c.maxsize)) // TODO: remove use of w and r by putting it into handler and passing it as bytes.Buffer
 	if err != nil {
-		defer os.Remove(fn)
+		defer os.Remove(fp)
 		return "", errors.New("failed writing to disk: " + err.Error())
 	}
-	return fn, nil
+	return id, nil
 }
 
 func (c *context) handler(w http.ResponseWriter, r *http.Request) {
 	switch r.Method {
 	case http.MethodGet:
 		w.Header()["Date"] = nil // suppress go generated Date header
-		err := readPaste(r, w, c)
+		// w.Header().Set("Content-Type", "application/octet-stream")  // TODO: let readPaste return a bytes.Buffer and a content type string
+		err := readPaste(r.URL.Path[1:], w, c)
 		if err != nil {
 			http.Error(w, "failed reading paste ("+err.Error()+")", http.StatusInternalServerError)
 		}
 	case http.MethodPost:
-		fn, err := savePaste(r, w, c)
+		// TODO: write the mimetype to the buffer start
+		id, err := savePaste(r, w, c)
 		if err != nil {
 			http.Error(w, "failed saving paste ("+err.Error()+")", http.StatusInternalServerError)
 		}
-		fmt.Fprintf(w, fn)
+		fmt.Fprintf(w, id)
 	default:
 		http.Error(w, "only GET /filename or POST / is allowed", http.StatusMethodNotAllowed)
 	}
