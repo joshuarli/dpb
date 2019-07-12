@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bufio"
 	"encoding/hex"
 	"errors"
 	"fmt"
@@ -26,13 +27,18 @@ type context struct {
 	maxsize int64
 }
 
-func getPaste(id string, c *context) (*os.File, string, error) {
+func getPaste(id string, c *context) (*bufio.Reader, string, error) {
 	f, err := os.OpenFile(path.Join(c.basedir, id), os.O_RDONLY, 0444)
 	if err != nil {
 		return nil, "", errors.New("not found")
 	}
-	// TODO: extract mandatory content-type from f else report malformed paste
-	return f, "application/octet-stream", nil
+	reader := bufio.NewReader(f)
+	// XXX: this may go badly if the paste wasn't saved to disk via savePaste, which writes a mimetype to the 1st line
+	mimetype, err := reader.ReadString('\n')
+	if err != nil {
+		return nil, "", errors.New("failed to read mimetype prelude in paste")
+	}
+	return reader, mimetype, nil
 }
 
 func savePaste(data *io.ReadCloser, mimetype string, c *context) (string, error) {
@@ -61,7 +67,10 @@ func savePaste(data *io.ReadCloser, mimetype string, c *context) (string, error)
 		defer os.Chmod(fp, 0444)
 		break
 	}
-	// TODO: write the mimetype to the buffer start
+	// we write the client-provided mimetype to the beginning of the paste file
+	// so the server doesn't have to do this (lots of added complexity)
+	// golang's net.http.sniff.DetectContentType is not nearly as complete as bsd file
+	fmt.Fprintln(f, mimetype)
 	_, err = io.Copy(f, *data)
 	if err != nil {
 		defer os.Remove(fp)
@@ -74,13 +83,12 @@ func (c *context) handler(w http.ResponseWriter, r *http.Request) {
 	switch r.Method {
 	case http.MethodGet:
 		w.Header()["Date"] = nil // suppress go generated Date header
-		f, mimetype, err := getPaste(r.URL.Path[1:], c)
-		defer f.Close()
+		reader, mimetype, err := getPaste(r.URL.Path[1:], c)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusNotFound)
 		}
 		w.Header().Set("Content-Type", mimetype)
-		io.Copy(w, f)
+		io.Copy(w, reader)
 	case http.MethodPost:
 		mimetype := r.Header.Get("Content-Type")
 		if mimetype == "" {
