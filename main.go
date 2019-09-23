@@ -1,4 +1,4 @@
-package main
+package dpb
 
 import (
 	"bufio"
@@ -16,19 +16,14 @@ import (
 	"time"
 )
 
-const (
-	mib              = 1 << 20
-	defaultNmibLimit = 10
-)
-
-type context struct {
+type Context struct {
 	prng    *rand.Rand
 	basedir string
 	maxsize int64
 	idlen   int
 }
 
-func getPaste(id string, c *context) (*bufio.Reader, *os.File, string, error) {
+func getPaste(id string, c *Context) (*bufio.Reader, *os.File, string, error) {
 	f, err := os.OpenFile(path.Join(c.basedir, id), os.O_RDONLY, 0444)
 	if err != nil {
 		time.Sleep(3 * time.Second) // deter rogue enumeration attempts
@@ -43,7 +38,7 @@ func getPaste(id string, c *context) (*bufio.Reader, *os.File, string, error) {
 	return reader, f, mimetype, nil
 }
 
-func savePaste(data *io.ReadCloser, mimetype string, c *context) (string, error) {
+func savePaste(data *io.ReadCloser, mimetype string, c *Context) (string, error) {
 	var f *os.File
 	var id, fp string
 	var err error
@@ -78,92 +73,4 @@ func savePaste(data *io.ReadCloser, mimetype string, c *context) (string, error)
 		return "", errors.New("failed writing to disk: " + err.Error())
 	}
 	return id, nil
-}
-
-func (c *context) handler(w http.ResponseWriter, r *http.Request) {
-	switch r.Method {
-	case http.MethodGet:
-		id := r.URL.Path[1:]
-		if id == "" {
-			fmt.Fprintf(w, "dpb ver. %s", VERSION)
-			return
-		}
-		w.Header()["Date"] = nil // suppress go generated Date header
-		reader, f, mimetype, err := getPaste(id, c)
-		defer f.Close()
-		if err != nil {
-			http.Error(w, err.Error(), http.StatusNotFound)
-			return
-		}
-		w.Header().Set("Content-Type", mimetype)
-		w.Header().Set("X-Content-Type-Options", "nosniff")
-		io.Copy(w, reader)
-	case http.MethodPost:
-		mimetype := r.Header.Get("Content-Type")
-		if mimetype == "" {
-			mimetype = "application/octet-stream"
-		}
-		data := http.MaxBytesReader(w, r.Body, c.maxsize)
-		id, err := savePaste(&data, mimetype, c)
-		if err != nil {
-			http.Error(w, "failed saving paste ("+err.Error()+")", http.StatusInternalServerError)
-			return
-		}
-		fmt.Fprintf(w, "%s", id)
-	default:
-		http.Error(w, "only GET /filename or POST / is allowed", http.StatusMethodNotAllowed)
-	}
-}
-
-func die(format string, v ...interface{}) {
-	fmt.Fprintf(os.Stderr, format, v...)
-	os.Stderr.Write([]byte("\n"))
-	os.Exit(1)
-}
-
-func main() {
-	if len(os.Args) != 2 {
-		die(`dpb ver. %s
-
-usage: %s port
-
-environment:
-
-	DPB_DIR        base directory to store paste files
-	DPB_MAX_MIB    per-paste upload limit, in MiB
-`, VERSION, os.Args[0])
-	}
-
-	var nmibLimit int
-	DPB_MAX_MIB, exists := os.LookupEnv("DPB_MAX_MIB")
-	if !exists {
-		nmibLimit = defaultNmibLimit
-	} else {
-		var err error
-		nmibLimit, err = strconv.Atoi(DPB_MAX_MIB)
-		if err != nil || nmibLimit < 1 {
-			die("DPB_MAX_MIB must be an integer >= 1")
-		}
-	}
-
-	DPB_DIR, exists := os.LookupEnv("DPB_DIR")
-	if !exists {
-		die("please set the value of DPB_DIR")
-	}
-	f, err := os.Open(DPB_DIR)
-	if err != nil {
-		die(err.Error())
-	}
-	if fi, err := f.Stat(); err != nil || !fi.IsDir() {
-		die("%s does not exist or is not a directory", DPB_DIR)
-	}
-
-	c := &context{
-		prng:    rand.New(rand.NewSource(time.Now().UnixNano())),
-		basedir: DPB_DIR,
-		maxsize: int64(nmibLimit * mib),
-		idlen:   5,
-	}
-	http.HandleFunc("/", c.handler)
-	log.Fatal(http.ListenAndServe(":"+os.Args[1], nil))
 }

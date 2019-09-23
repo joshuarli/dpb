@@ -8,9 +8,10 @@ build: clean $(NAME)
 # a temporary version file is created from a template in order to inject the VERSION variable into the static build
 # embedding the version into the binary's DWARF table doesn't work because its stripped during the release build
 TMP_VERSION_FILE := $(shell tr -dc 'a-f0-9' < /dev/urandom | dd bs=1 count=64 2>/dev/null).go
-$(NAME): main.go
+$(NAME): cmd/main.go
 	sed 's/MAKE_VERSION/$(VERSION)/' .version > $(TMP_VERSION_FILE)
-	go build -o build/$(NAME) . ; rm $(TMP_VERSION_FILE)
+	cd cmd && go build -o build/$(NAME) .
+	cd - && rm $(TMP_VERSION_FILE)
 
 .PHONY: clean
 clean:
